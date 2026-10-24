@@ -48,152 +48,98 @@ label{display:block;font-weight:800;margin:16px 0 8px}input[type=text],textarea{
 </main>
 
 <script>
-// ===== 只需要把 Firebase 提供的設定貼在這裡 =====
-const firebaseConfig = {
-  apiKey: "AIzaSyCcJ28Fkwu0LTWZq7g0B8Y0NAAr-GAjs4M",
-  authDomain: "vote-bd59c.firebaseapp.com",
-  projectId: "vote-bd59c",
-  storageBucket: "vote-bd59c.firebasestorage.app",
-  messagingSenderId: "999644776434",
-  appId: "1:999644776434:web:37eb32730c758133c74d6b"
+const firebaseConfig={
+ apiKey:"AIzaSyCcJ28Fkwu0LTWZq7g0B8Y0NAAr-GAjs4M",
+ authDomain:"vote-bd59c.firebaseapp.com",
+ projectId:"vote-bd59c",
+ storageBucket:"vote-bd59c.firebasestorage.app",
+ messagingSenderId:"999644776434",
+ appId:"1:999644776434:web:37eb32730c758133c74d6b"
 };
-// ===============================================
-
-const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("YOUR_");
-if (configured) firebase.initializeApp(firebaseConfig);
-const db = configured ? firebase.firestore() : null;
-
-let current=null, selected=null;
-const polls = () => db.collection("polls");
-
-function show(id){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');scrollTo(0,0)}
-function toggle(el){el.classList.toggle('on')}
-function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function addOption(v=''){let r=document.createElement('div');r.className='optionrow';r.innerHTML=`<input type="text" value="${esc(v)}" placeholder="輸入選項"><button class="btn" onclick="this.parentElement.remove()">×</button>`;document.getElementById('options').appendChild(r)}
-function fail(e){console.error(e);alert(e?.message||String(e))}
-function adminName(id){return "village_admin_"+id}
-function makeKey(){return crypto.randomUUID ? crypto.randomUUID()+crypto.randomUUID() : Date.now()+Math.random().toString(36)}
-
-async function init(){
- addOption();addOption();
- if(!configured){
-   pollList.innerHTML='<div class="notice">尚未填入 Firebase 設定。請依 README 的步驟把 firebaseConfig 貼進 index.html。</div>';
-   return;
- }
- await route();
-}
-async function route(){
- let m=location.hash.match(/^#poll=([^&]+)$/);
- if(m) return openPoll(m[1]);
- await loadMine(); show('home');
-}
-async function goHome(){history.replaceState(null,'',location.pathname+location.search);await loadMine();show('home')}
-
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+let current=null,selected=null;
+const $=id=>document.getElementById(id);
+const polls=()=>db.collection("polls");
+function esc(v=""){return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function show(id){document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");scrollTo(0,0)}
+function toggle(x){x.classList.toggle("on")}
+function addOption(v=""){const r=document.createElement("div");r.className="optionrow";r.innerHTML=`<input type="text" value="${esc(v)}" placeholder="輸入選項"><button class="btn" type="button" onclick="this.parentElement.remove()">×</button>`;$("options").appendChild(r)}
+function adminKey(id){return"village_admin_"+id}
+function newKey(){return (crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random())}
+function err(e){console.error(e);alert("操作失敗： "+(e?.message||e))}
+async function init(){addOption();addOption();await route()}
+async function route(){const m=location.hash.match(/^#poll=([^&]+)$/);if(m)return openPoll(m[1]);await loadMine();show("home")}
+async function goHome(){history.replaceState(null,"",location.pathname+location.search);await loadMine();show("home")}
 async function loadMine(){
- let ids=Object.keys(localStorage).filter(k=>k.startsWith("village_admin_")).map(k=>k.replace("village_admin_",""));
- if(!ids.length){pollList.innerHTML='<div class="meta">目前還沒有你在這台瀏覽器建立的投票。建立一個試試看吧。</div>';return}
- let docs=[];
- for(const id of ids){let snap=await polls().doc(id).get();if(snap.exists)docs.push({id:snap.id,...snap.data()})}
+ const ids=Object.keys(localStorage).filter(k=>k.startsWith("village_admin_")).map(k=>k.slice(14));
+ if(!ids.length){$("pollList").innerHTML='<div class="meta">目前還沒有你在這台瀏覽器建立的投票。</div>';return}
+ const docs=[];
+ for(const id of ids){try{const d=await polls().doc(id).get();if(d.exists)docs.push({id:d.id,...d.data()})}catch(e){console.error(e)}}
  docs.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
- pollList.innerHTML=docs.length?docs.map(p=>`<div class="pollrow"><div><b>${esc(p.title)}</b><div class="meta">${p.anonymous?'匿名':'記名'}投票 · ${(p.votes||[]).length} 票</div></div><div class="actions"><button class="btn" onclick="openPoll('${p.id}')">進入投票 →</button><button class="btn danger" onclick="deletePoll('${p.id}','${esc(p.title)}')">刪除</button></div></div>`).join(''):'<div class="meta">目前還沒有投票。</div>';
+ $("pollList").innerHTML=docs.length?docs.map(p=>`<div class="pollrow"><div><b>${esc(p.title)}</b><div class="meta">${p.anonymous?"匿名":"記名"}投票 · ${(p.votes||[]).length} 票</div></div><div class="actions"><button class="btn" onclick="openPoll('${p.id}')">進入投票 →</button><button class="btn danger" onclick="deletePoll('${p.id}','${esc(p.title)}')">刪除</button></div></div>`).join(""):'<div class="meta">目前還沒有投票。</div>'
 }
-
 async function createPoll(){
- const titleEl=document.getElementById('title');
- const descEl=document.getElementById('desc');
- const optionsEl=document.getElementById('options');
- const anonEl=document.getElementById('anon');
- const customEl=document.getElementById('custom');
- const btn=document.querySelector('#create .btn.primary');
+ const btn=document.querySelector("#create .btn.primary");
  try{
-   if(!db) throw new Error('Firebase 尚未正確連線。');
-   const t=titleEl.value.trim();
-   const vals=[...optionsEl.querySelectorAll('input')].map(x=>x.value.trim()).filter(Boolean);
-   if(!t){alert('請輸入投票主題');return}
-   if(vals.length<2){alert('請至少輸入兩個選項');return}
-   if(btn){btn.disabled=true;btn.textContent='建立中…'}
-   const key=makeKey();
-   const ref=await polls().add({
-     title:t,
-     description:descEl.value.trim(),
-     anonymous:anonEl.classList.contains('on'),
-     allowCustom:customEl.classList.contains('on'),
-     options:vals.map((text,i)=>({id:"o"+Date.now()+i+Math.random().toString(36).slice(2),text})),
-     votes:[],
-     adminKey:key,
-     createdAt:Date.now()
-   });
-   localStorage.setItem(adminName(ref.id),key);
-   location.hash="poll="+ref.id;
-   await openPoll(ref.id);
- }catch(e){
-   console.error('Create poll failed:',e);
-   alert('建立投票失敗：'+(e?.message||e)+'\n\n請把這段錯誤訊息截圖給我。');
- }finally{
-   if(btn){btn.disabled=false;btn.textContent='建立並取得連結'}
- }
+  const title=$("title").value.trim();
+  const vals=[...$("options").querySelectorAll("input")].map(x=>x.value.trim()).filter(Boolean);
+  if(!title)return alert("請輸入投票主題");
+  if(vals.length<2)return alert("請至少輸入兩個選項");
+  btn.disabled=true;btn.textContent="建立中…";
+  const key=newKey();
+  const doc={
+   title,description:$("desc").value.trim(),
+   anonymous:$("anon").classList.contains("on"),
+   allowCustom:$("custom").classList.contains("on"),
+   options:vals.map((text,i)=>({id:"o"+Date.now()+"_"+i+"_"+Math.random().toString(36).slice(2),text})),
+   votes:[],adminKey:key,createdAt:Date.now()
+  };
+  const ref=await polls().add(doc);
+  localStorage.setItem(adminKey(ref.id),key);
+  location.hash="poll="+ref.id;
+  await openPoll(ref.id);
+ }catch(e){err(e)}
+ finally{btn.disabled=false;btn.textContent="建立並取得連結"}
 }
-
 async function openPoll(id){
- let snap=await polls().doc(id).get();
- if(!snap.exists)return alert('找不到這個投票');
- let p={id:snap.id,...snap.data()};current=p;selected=null;
- voteTitle.textContent=p.title;
- voteDesc.textContent=p.description||'選出最符合你想法的一項。';
- voteBadge.textContent=p.anonymous?'匿名投票':'記名投票';
- voterName.classList.toggle('hidden',p.anonymous);
- customWrap.classList.toggle('hidden',!p.allowCustom);
- voteOptions.innerHTML=(p.options||[]).map(o=>`<div class="voteopt" data-id="${o.id}" onclick="pick(this)">${esc(o.text)}</div>`).join('');
- shareLink.value=location.href.split('#')[0]+"#poll="+id;
- history.replaceState(null,'',"#poll="+id);
- already.classList.add('hidden');voteBtn.disabled=false;show('vote');
-}
-function pick(el){document.querySelectorAll('.voteopt').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');selected=el.dataset.id}
-
-async function submitVote(){
- if(!current.anonymous&&!nameInput.value.trim())return alert('請輸入你的名字');
- let customText=customInput.value.trim();
- if(!selected&&!customText)return alert('請選擇一個選項');
- let ref=polls().doc(current.id);
  try{
-   await db.runTransaction(async tx=>{
-     let snap=await tx.get(ref);if(!snap.exists)throw new Error("投票不存在");
-     let p=snap.data(), opts=p.options||[], oid=selected;
-     if(customText){
-       if(!p.allowCustom)throw new Error("此投票不允許自行新增選項");
-       let existing=opts.find(o=>o.text.toLowerCase()===customText.toLowerCase());
-       if(existing)oid=existing.id;
-       else{oid="o"+Date.now()+Math.random().toString(36).slice(2);opts.push({id:oid,text:customText.slice(0,200)})}
-     }
-     let votes=p.votes||[];
-     votes.push({optionId:oid,name:p.anonymous?null:nameInput.value.trim().slice(0,100),at:Date.now()});
-     tx.update(ref,{options:opts,votes});
-   });
-   customInput.value='';nameInput.value='';await openPoll(current.id);await showResults();
- }catch(e){fail(e)}
+  const d=await polls().doc(id).get();if(!d.exists)return alert("找不到這個投票");
+  current={id:d.id,...d.data()};selected=null;
+  $("voteTitle").textContent=current.title;$("voteDesc").textContent=current.description||"選出最符合你想法的一項。";
+  $("voteBadge").textContent=current.anonymous?"匿名投票":"記名投票";
+  $("voterName").classList.toggle("hidden",current.anonymous);$("customWrap").classList.toggle("hidden",!current.allowCustom);
+  $("voteOptions").innerHTML=(current.options||[]).map(o=>`<div class="voteopt" data-id="${o.id}" onclick="pick(this)">${esc(o.text)}</div>`).join("");
+  $("shareLink").value=location.href.split("#")[0]+"#poll="+id;history.replaceState(null,"","#poll="+id);
+  $("already").classList.add("hidden");$("voteBtn").disabled=false;show("vote")
+ }catch(e){err(e)}
 }
-
+function pick(el){document.querySelectorAll(".voteopt").forEach(x=>x.classList.remove("selected"));el.classList.add("selected");selected=el.dataset.id}
+async function submitVote(){
+ try{
+  if(!current.anonymous&&!$("nameInput").value.trim())return alert("請輸入你的名字");
+  const custom=$("customInput").value.trim();if(!selected&&!custom)return alert("請選擇一個選項");
+  const ref=polls().doc(current.id);
+  await db.runTransaction(async tx=>{
+   const snap=await tx.get(ref);if(!snap.exists)throw new Error("投票不存在");
+   const p=snap.data(),opts=[...(p.options||[])],votes=[...(p.votes||[])];let oid=selected;
+   if(custom){if(!p.allowCustom)throw new Error("此投票不允許新增選項");const old=opts.find(o=>o.text.toLowerCase()===custom.toLowerCase());if(old)oid=old.id;else{oid="o"+Date.now()+Math.random().toString(36).slice(2);opts.push({id:oid,text:custom.slice(0,200)})}}
+   votes.push({optionId:oid,name:p.anonymous?null:$("nameInput").value.trim().slice(0,100),at:Date.now()});
+   tx.update(ref,{options:opts,votes})
+  });
+  $("customInput").value="";$("nameInput").value="";await showResults()
+ }catch(e){err(e)}
+}
 async function showResults(){
- let snap=await polls().doc(current.id).get();if(!snap.exists)return alert('投票不存在');
- current={id:snap.id,...snap.data()};
- let votes=current.votes||[], total=votes.length;
- resultTitle.textContent=current.title;resultCount.textContent=`目前共收到 ${total} 票`;
- resultBars.innerHTML=(current.options||[]).map(o=>{
-   let n=votes.filter(v=>v.optionId===o.id).length,pct=total?Math.round(n/total*100):0;
-   return `<div class="result"><div class="between"><b>${esc(o.text)}</b><span>${n} 票 · ${pct}%</span></div><div class="bar"><div class="fill" style="width:${pct}%"></div></div></div>`;
- }).join('');
- show('results');
+ try{
+  const d=await polls().doc(current.id).get();if(!d.exists)return alert("投票不存在");current={id:d.id,...d.data()};
+  const votes=current.votes||[],total=votes.length;$("resultTitle").textContent=current.title;$("resultCount").textContent=`目前共收到 ${total} 票`;
+  $("resultBars").innerHTML=(current.options||[]).map(o=>{const n=votes.filter(v=>v.optionId===o.id).length,pct=total?Math.round(n/total*100):0;return`<div class="result"><div class="between"><b>${esc(o.text)}</b><span>${n} 票 · ${pct}%</span></div><div class="bar"><div class="fill" style="width:${pct}%"></div></div></div>`}).join("");show("results")
+ }catch(e){err(e)}
 }
-
-async function deletePoll(id,t){
- let key=localStorage.getItem(adminName(id));
- if(!key)return alert('這台瀏覽器沒有此投票的管理權限。');
- if(!confirm(`確定要刪除「${t}」嗎？`))return;
- let ref=polls().doc(id),snap=await ref.get();
- if(!snap.exists)return loadMine();
- if(snap.data().adminKey!==key)return alert('管理密鑰不正確。');
- await ref.delete();localStorage.removeItem(adminName(id));await loadMine();
+async function deletePoll(id,title){
+ try{const key=localStorage.getItem(adminKey(id));if(!key)return alert("這台瀏覽器沒有此投票的管理權限。");if(!confirm(`確定要刪除「${title}」嗎？`))return;const ref=polls().doc(id),d=await ref.get();if(!d.exists)return loadMine();if(d.data().adminKey!==key)return alert("管理密鑰不正確。");await ref.delete();localStorage.removeItem(adminKey(id));await loadMine()}catch(e){err(e)}
 }
-function copyLink(){navigator.clipboard.writeText(shareLink.value).then(()=>alert('投票連結已複製')).catch(()=>prompt('請複製以下網址',shareLink.value))}
-window.addEventListener('hashchange',route);init();
+function copyLink(){navigator.clipboard.writeText($("shareLink").value).then(()=>alert("投票連結已複製")).catch(()=>prompt("請複製以下網址",$("shareLink").value))}
+window.addEventListener("hashchange",route);init();
 </script></body></html>
