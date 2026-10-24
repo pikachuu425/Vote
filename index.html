@@ -69,7 +69,7 @@ const polls = () => db.collection("polls");
 function show(id){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');scrollTo(0,0)}
 function toggle(el){el.classList.toggle('on')}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function addOption(v=''){let r=document.createElement('div');r.className='optionrow';r.innerHTML=`<input type="text" value="${esc(v)}" placeholder="輸入選項"><button class="btn" onclick="this.parentElement.remove()">×</button>`;options.appendChild(r)}
+function addOption(v=''){let r=document.createElement('div');r.className='optionrow';r.innerHTML=`<input type="text" value="${esc(v)}" placeholder="輸入選項"><button class="btn" onclick="this.parentElement.remove()">×</button>`;document.getElementById('options').appendChild(r)}
 function fail(e){console.error(e);alert(e?.message||String(e))}
 function adminName(id){return "village_admin_"+id}
 function makeKey(){return crypto.randomUUID ? crypto.randomUUID()+crypto.randomUUID() : Date.now()+Math.random().toString(36)}
@@ -99,20 +99,39 @@ async function loadMine(){
 }
 
 async function createPoll(){
- let t=title.value.trim(), vals=[...options.querySelectorAll('input')].map(x=>x.value.trim()).filter(Boolean);
- if(!t)return alert('請輸入投票主題');
- if(vals.length<2)return alert('請至少輸入兩個選項');
- let key=makeKey();
- let ref=await polls().add({
-   title:t, description:desc.value.trim(),
-   anonymous:anon.classList.contains('on'),
-   allowCustom:custom.classList.contains('on'),
-   options:vals.map((text,i)=>({id:"o"+Date.now()+i+Math.random().toString(36).slice(2),text})),
-   votes:[], adminKey:key, createdAt:Date.now()
- });
- localStorage.setItem(adminName(ref.id),key);
- location.hash="poll="+ref.id;
- await openPoll(ref.id);
+ const titleEl=document.getElementById('title');
+ const descEl=document.getElementById('desc');
+ const optionsEl=document.getElementById('options');
+ const anonEl=document.getElementById('anon');
+ const customEl=document.getElementById('custom');
+ const btn=document.querySelector('#create .btn.primary');
+ try{
+   if(!db) throw new Error('Firebase 尚未正確連線。');
+   const t=titleEl.value.trim();
+   const vals=[...optionsEl.querySelectorAll('input')].map(x=>x.value.trim()).filter(Boolean);
+   if(!t){alert('請輸入投票主題');return}
+   if(vals.length<2){alert('請至少輸入兩個選項');return}
+   if(btn){btn.disabled=true;btn.textContent='建立中…'}
+   const key=makeKey();
+   const ref=await polls().add({
+     title:t,
+     description:descEl.value.trim(),
+     anonymous:anonEl.classList.contains('on'),
+     allowCustom:customEl.classList.contains('on'),
+     options:vals.map((text,i)=>({id:"o"+Date.now()+i+Math.random().toString(36).slice(2),text})),
+     votes:[],
+     adminKey:key,
+     createdAt:Date.now()
+   });
+   localStorage.setItem(adminName(ref.id),key);
+   location.hash="poll="+ref.id;
+   await openPoll(ref.id);
+ }catch(e){
+   console.error('Create poll failed:',e);
+   alert('建立投票失敗：'+(e?.message||e)+'\n\n請把這段錯誤訊息截圖給我。');
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent='建立並取得連結'}
+ }
 }
 
 async function openPoll(id){
