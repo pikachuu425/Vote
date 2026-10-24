@@ -59,7 +59,7 @@ const firebaseConfig = {
 };
 // ===============================================
 
-const configured = firebaseConfig.apiKey !== "AIzaSyCcJ28Fkwu0LTWZq7g0B8Y0NAAr-GAjs4M";
+const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("YOUR_");
 if (configured) firebase.initializeApp(firebaseConfig);
 const db = configured ? firebase.firestore() : null;
 
